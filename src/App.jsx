@@ -8,6 +8,39 @@ import { useApp } from './context/AppContext'
 
 const tick = () => new Promise(r => setTimeout(r, 0))
 
+// ── CORS / Mixed-Content proxy fallback ───────────────────────
+// When the app is served over HTTPS (e.g. GitHub Pages) the browser
+// blocks plain HTTP fetches (mixed content). We route those through
+// a public CORS proxy automatically. HTTPS targets are tried directly
+// first; only if that fails do we fall back to the proxy.
+const PROXIES = [
+  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+]
+
+async function safeFetch(url) {
+  const needsProxy =
+    window.location.protocol === 'https:' && url.startsWith('http://')
+
+  if (!needsProxy) {
+    try {
+      const res = await fetch(url)
+      if (res.ok) return res
+    } catch (_) { /* CORS or network — fall through to proxy */ }
+  }
+
+  // Try each proxy in order
+  let lastErr
+  for (const makeProxy of PROXIES) {
+    try {
+      const res = await fetch(makeProxy(url))
+      if (res.ok) return res
+      lastErr = new Error(`HTTP ${res.status}`)
+    } catch (e) { lastErr = e }
+  }
+  throw lastErr ?? new Error('Fetch failed')
+}
+
 function resolveUrl(raw, base) {
   if (!raw) return ''
   if (/^https?:\/\//i.test(raw)) return raw
@@ -76,7 +109,7 @@ export default function App() {
     await tick()
 
     try {
-      const res = await fetch(trimmed)
+      const res = await safeFetch(trimmed)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
       setLoadingMsg('İçerik okunuyor...')
@@ -154,7 +187,7 @@ export default function App() {
     setAppState('loading')
     await tick()
     try {
-      const res = await fetch(url)
+      const res = await safeFetch(url)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const text = await res.text()
       const { groupMap: gm, groups: gs } = parseM3U(text, url)
