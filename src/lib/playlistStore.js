@@ -55,6 +55,7 @@ function run(stores, mode, fn) {
 
 // ── Derive display name from URL ──────────────────────────────
 export function playlistName(url) {
+  if (url.startsWith('local://')) return url.slice(8)   // just the filename
   try {
     const u = new URL(url)
     return u.hostname + (u.port ? `:${u.port}` : '')

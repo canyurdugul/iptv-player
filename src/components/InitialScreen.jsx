@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 
 function formatDate(ts) {
   return new Date(ts).toLocaleDateString('tr-TR', {
@@ -125,8 +125,8 @@ function SavedRow({ item, onLoad, onDelete, onRename, onUpdate }) {
                 </svg>
               </button>
 
-              {/* Update from URL (only visible on hover) */}
-              <button
+              {/* Update from URL — hidden for local files */}
+              {!item.url.startsWith('local://') && <button
                 onClick={() => onUpdate(item.id, item.url)}
                 title="Playlist'i linkinden güncelle"
                 className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-blue-400 p-1.5 rounded transition-all"
@@ -135,7 +135,7 @@ function SavedRow({ item, onLoad, onDelete, onRename, onUpdate }) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                 </svg>
-              </button>
+              </button>}
 
               {/* Load */}
               <button
@@ -156,14 +156,21 @@ function SavedRow({ item, onLoad, onDelete, onRename, onUpdate }) {
 }
 
 // ── Main component ────────────────────────────────────────────
-export default function InitialScreen({ url, setUrl, onLoad, error, savedList = [], onLoadSaved, onDeleteSaved, onRenameSaved, onUpdateSaved }) {
+export default function InitialScreen({ url, setUrl, onLoad, onLoadFile, error, savedList = [], onLoadSaved, onDeleteSaved, onRenameSaved, onUpdateSaved }) {
   const [showNew, setShowNew] = useState(savedList.length === 0)
+  const fileInputRef = useRef(null)
 
   const hasSaved = savedList.length > 0
 
   function handleKey(e) {
     if (e.key === 'Enter') onLoad(url)
   }
+
+  const handleFileChange = useCallback((e) => {
+    const file = e.target.files?.[0]
+    if (file) onLoadFile(file)
+    e.target.value = ''   // reset so same file can be re-selected
+  }, [onLoadFile])
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
@@ -222,6 +229,7 @@ export default function InitialScreen({ url, setUrl, onLoad, error, savedList = 
               </div>
             )}
 
+            {/* URL input */}
             <div>
               {!hasSaved && (
                 <label className="block text-sm text-gray-400 mb-2">
@@ -261,6 +269,32 @@ export default function InitialScreen({ url, setUrl, onLoad, error, savedList = 
                 </button>
               )}
             </div>
+
+            {/* Divider */}
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-px bg-gray-700" />
+              <span className="text-xs text-gray-600">ya da</span>
+              <div className="flex-1 h-px bg-gray-700" />
+            </div>
+
+            {/* Local file picker — reads the file in-browser, no upload */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".m3u,.m3u8,.txt"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-dashed border-gray-600 text-gray-400 hover:text-white hover:border-gray-500 text-sm transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M3 7a2 2 0 012-2h3l2 3h7a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+              </svg>
+              Bilgisayardan M3U Seç
+            </button>
           </div>
         )}
 

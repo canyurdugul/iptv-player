@@ -204,6 +204,50 @@ export default function App() {
     }
   }
 
+  // ── Load from local file (no upload — FileReader only) ───────
+  async function handleLoadFile(file) {
+    setError('')
+    setLoadingMsg('Dosya okunuyor...')
+    setLoadingDetail(file.name)
+    setAppState('loading')
+    await tick()
+
+    try {
+      const text = await file.text()
+      const kb   = Math.round(text.length / 1024)
+
+      setLoadingMsg('İçerik işleniyor...')
+      setLoadingDetail(`${kb.toLocaleString()} KB`)
+      await tick()
+
+      const { groupMap: gm, groups: gs } = parseM3U(text, '')
+      if (gs.length === 0) throw new Error('Geçerli M3U kanalı bulunamadı.')
+
+      const total = gs.reduce((s, g) => s + gm[g].length, 0)
+      setLoadingMsg('Kanallar yükleniyor...')
+      setLoadingDetail(`${gs.length} grup, ${total.toLocaleString()} kanal bulundu`)
+      await tick()
+
+      const pseudoUrl = `local://${file.name}`
+      savePlaylist({ url: pseudoUrl, groupMap: gm, groups: gs })
+        .then(id => {
+          setActivePlaylistId(id)
+          ctxSetPlaylistId(id)
+          getRecentlyPlayed(id).then(setRecentChannels).catch(() => {})
+          return listPlaylists().then(setSavedList)
+        })
+        .catch(() => {})
+
+      setGroupMap(gm)
+      setGroups(gs)
+      setSelected(null)
+      setAppState('loaded')
+    } catch (err) {
+      setError(err.message || 'Dosya okunamadı.')
+      setAppState('initial')
+    }
+  }
+
   // ── Delete from cache ─────────────────────────────────────
   async function handleDeleteSaved(id) {
     await deletePlaylist(id).catch(() => {})
@@ -229,6 +273,7 @@ export default function App() {
         onDeleteSaved={handleDeleteSaved}
         onRenameSaved={handleRenameSaved}
         onUpdateSaved={handleUpdateSaved}
+        onLoadFile={handleLoadFile}
       />
     )
   }
