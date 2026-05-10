@@ -14,8 +14,9 @@ const tick = () => new Promise(r => setTimeout(r, 0))
 // a public CORS proxy automatically. HTTPS targets are tried directly
 // first; only if that fails do we fall back to the proxy.
 const PROXIES = [
-  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
   u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  u => `https://thingproxy.freeboard.io/fetch/${u}`,
+  u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
 ]
 
 async function safeFetch(url) {
