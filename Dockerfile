@@ -7,9 +7,11 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-# Copy source and build
+# Copy source and build.
+# Override base to '/' so asset paths are root-relative (/assets/…).
+# The vite.config.js base '/iptv-player/' is only needed for GitHub Pages.
 COPY . .
-RUN npm run build
+RUN npm run build -- --base /
 
 # ── Stage 2: Serve ───────────────────────────────────────────
 FROM nginx:alpine

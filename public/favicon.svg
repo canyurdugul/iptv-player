@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Dark rounded background -->
+  <rect width="32" height="32" rx="7" fill="#0f172a"/>
+
+  <!-- TV body -->
+  <rect x="3" y="5" width="26" height="17" rx="3" fill="#2563eb"/>
+
+  <!-- Screen (dark inset) -->
+  <rect x="5" y="7" width="22" height="13" rx="1.5" fill="#0f172a"/>
+
+  <!-- Play triangle -->
+  <polygon points="13,9.5 13,17.5 22,13.5" fill="#3b82f6"/>
+
+  <!-- Shine highlight on screen -->
+  <rect x="5" y="7" width="22" height="2" rx="1.5" fill="white" opacity="0.04"/>
+
+  <!-- Stand neck -->
+  <rect x="13" y="22" width="6" height="2.5" rx="1" fill="#2563eb"/>
+
+  <!-- Stand base -->
+  <rect x="9" y="24.5" width="14" height="2.5" rx="1.25" fill="#2563eb"/>
+</svg>
