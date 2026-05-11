@@ -78,6 +78,32 @@ export function unhideGroup(playlistId, group) {
   save(hgKey(playlistId), getHiddenGroups(playlistId).filter(g => g !== group))
 }
 
+// ── VOD playback position ─────────────────────────────────────
+// Stores { time, savedAt } per URL so the player can resume where it left off.
+// Entries expire after 30 days automatically.
+const POSITION_TTL = 30 * 24 * 60 * 60 * 1000   // 30 days in ms
+const posKey = url => `tvp_pos_${url}`
+
+export function savePosition(url, time) {
+  try {
+    localStorage.setItem(posKey(url), JSON.stringify({ time, savedAt: Date.now() }))
+  } catch {}
+}
+
+export function loadPosition(url) {
+  try {
+    const raw = localStorage.getItem(posKey(url))
+    if (!raw) return 0
+    const { time, savedAt } = JSON.parse(raw)
+    if (Date.now() - savedAt > POSITION_TTL) { clearPosition(url); return 0 }
+    return time || 0
+  } catch { return 0 }
+}
+
+export function clearPosition(url) {
+  try { localStorage.removeItem(posKey(url)) } catch {}
+}
+
 // ── Custom groups (per playlist) ──────────────────────────────
 // CustomGroup: { id: string, name: string, channels: Channel[] }
 const cgKey = id => `tvp_cg_${id}`

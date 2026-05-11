@@ -6,6 +6,7 @@ import mpegts from 'mpegts.js'
 import MkvPanel from './MkvPanel'
 import SubtitleLoader from './SubtitleLoader'
 import SubtitleSearch from './SubtitleSearch'
+import { savePosition, loadPosition, clearPosition } from '../lib/userStore'
 
 // ── Lazy Shaka singleton ──────────────────────────────────────
 // Loaded once on first VOD play; polyfills installed immediately after.
@@ -88,10 +89,11 @@ function trackLabel(t, i) {
 
 export default function VideoPlayer({ channel, onEnded }) {
   const { settings } = useApp()
-  const containerRef = useRef(null)
-  const activeRef    = useRef(null)
-  const onEndedRef   = useRef(onEnded)
-  const videoElRef   = useRef(null)   // raw <video> element for SubtitleLoader
+  const containerRef    = useRef(null)
+  const activeRef       = useRef(null)
+  const onEndedRef      = useRef(onEnded)
+  const videoElRef      = useRef(null)   // raw <video> element for SubtitleLoader
+  const posCleanupRef   = useRef(null)   // cleanup fn for position-tracking listeners
   useEffect(() => { onEndedRef.current = onEnded }, [onEnded])
 
   // Shaka text-track state
@@ -104,8 +106,54 @@ export default function VideoPlayer({ channel, onEnded }) {
     setShakaSub(-1)
   }, [channel])
 
+  // ── Position tracking setup ───────────────────────────────
+  // Attaches timeupdate/ended listeners to a video element for VOD resume.
+  // Returns a cleanup function to remove those listeners.
+  function setupPositionTracking(videoEl, url) {
+    let lastSave = 0
+
+    function onTimeUpdate() {
+      const now = Date.now()
+      // Save at most once every 5 seconds; ignore the first 3 seconds
+      if (videoEl.currentTime > 3 && now - lastSave > 5000) {
+        lastSave = now
+        savePosition(url, videoEl.currentTime)
+      }
+    }
+
+    function onEnded() {
+      clearPosition(url)   // finished watching → forget position
+    }
+
+    function tryResume() {
+      const saved = loadPosition(url)
+      // Only seek if saved position is meaningful and not near the end
+      if (saved > 3 && isFinite(videoEl.duration) && saved < videoEl.duration - 5) {
+        videoEl.currentTime = saved
+      }
+    }
+
+    videoEl.addEventListener('timeupdate', onTimeUpdate)
+    videoEl.addEventListener('ended',      onEnded, { once: true })
+
+    // If metadata already available (e.g. native fallback with direct src=), seek now
+    if (videoEl.readyState >= HTMLVideoElement.HAVE_METADATA) {
+      tryResume()
+    } else {
+      videoEl.addEventListener('loadedmetadata', tryResume, { once: true })
+    }
+
+    return () => {
+      videoEl.removeEventListener('timeupdate',     onTimeUpdate)
+      videoEl.removeEventListener('ended',          onEnded)
+      videoEl.removeEventListener('loadedmetadata', tryResume)
+    }
+  }
+
   // ── Destroy active player ─────────────────────────────────
   function destroyActive() {
+    posCleanupRef.current?.()
+    posCleanupRef.current = null
     const a = activeRef.current
     if (!a) return
     try {
@@ -188,6 +236,7 @@ export default function VideoPlayer({ channel, onEnded }) {
       videoEl.play().catch(() => {})
       videoElRef.current = videoEl
       activeRef.current  = { type: 'native', instance: null, videoEl }
+      posCleanupRef.current = setupPositionTracking(videoEl, ch.url)
       return
     }
 
@@ -205,6 +254,7 @@ export default function VideoPlayer({ channel, onEnded }) {
       videoEl.src = ch.url
       videoEl.play().catch(() => {})
       activeRef.current = { type: 'native', instance: null, videoEl }
+      posCleanupRef.current = setupPositionTracking(videoEl, ch.url)
       return
     }
 
@@ -243,6 +293,7 @@ export default function VideoPlayer({ channel, onEnded }) {
       videoEl.src = ch.url
       videoEl.play().catch(() => {})
       activeRef.current = { type: 'native', instance: null, videoEl }
+      posCleanupRef.current = setupPositionTracking(videoEl, ch.url)
       return
     }
 
@@ -250,6 +301,7 @@ export default function VideoPlayer({ channel, onEnded }) {
 
     videoEl.play().catch(() => {})
     activeRef.current = { type: 'shaka', instance: player, videoEl }
+    posCleanupRef.current = setupPositionTracking(videoEl, ch.url)
   }
 
   // ── Effect: rebuild player on channel change ──────────────
