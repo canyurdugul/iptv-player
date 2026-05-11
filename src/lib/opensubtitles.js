@@ -101,18 +101,9 @@ export async function requestDownload(fileId) {
 export async function downloadSubtitle(fileId) {
   const { link, file_name } = await requestDownload(fileId)
 
-  // Try direct fetch first; fall back to corsproxy if CORS blocks it
-  let text
-  try {
-    const r = await fetch(link)
-    if (!r.ok) throw new Error(`HTTP ${r.status}`)
-    text = await r.text()
-  } catch {
-    const proxy = `https://corsproxy.io/?${encodeURIComponent(link)}`
-    const r     = await fetch(proxy)
-    if (!r.ok)  throw new Error(`Proxy HTTP ${r.status}`)
-    text = await r.text()
-  }
+  const r = await fetch(link)
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  const text = await r.text()
 
   // Convert SRT → VTT if needed
   const isSrt = /\.srt$/i.test(file_name) || !file_name.endsWith('.vtt')
