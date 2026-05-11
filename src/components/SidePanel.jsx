@@ -44,6 +44,64 @@ function buildSeriesMap(channels) {
   return { subGroups, loose }
 }
 
+// ── Channel row (module-level so React never remounts on parent re-render) ───
+function ChannelRow({ channel, showGrp, isActive, onSelectChannel, onRemoveRecent }) {
+  const { isFav, toggleFavorite } = useApp()
+  const fav = isFav(channel.url)
+
+  return (
+    <div className={`flex items-center gap-1 border-l-4 transition-colors ${
+      isActive ? 'border-blue-500 bg-gray-700' : 'border-transparent hover:bg-gray-700'
+    }`}>
+      <button
+        title={channel.name}
+        onClick={() => onSelectChannel(channel)}
+        className="flex-1 flex items-center gap-2 px-2 py-2.5 text-left min-w-0"
+      >
+        <div className="w-7 h-7 rounded bg-gray-600 flex items-center justify-center shrink-0 overflow-hidden">
+          {channel.logo
+            ? <img src={channel.logo} alt="" className="w-full h-full object-contain"
+                onError={e => { e.target.style.display = 'none' }} />
+            : <svg className="w-3.5 h-3.5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2 4.5A2.5 2.5 0 014.5 2h11A2.5 2.5 0 0118 4.5v9A2.5 2.5 0 0115.5 16h-11A2.5 2.5 0 012 13.5v-9z"/>
+              </svg>
+          }
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-gray-200 truncate">{channel.name}</p>
+          {showGrp && <p className="text-xs text-gray-500 truncate">{channel.group}</p>}
+        </div>
+        <Badge url={channel.url} />
+      </button>
+
+      {/* Favourite star */}
+      <button
+        onClick={() => toggleFavorite(channel)}
+        title={fav ? 'Favorilerden çıkar' : 'Favorilere ekle'}
+        className={`shrink-0 p-1.5 transition-colors ${fav ? 'text-yellow-400' : 'text-gray-600 hover:text-yellow-400'}`}
+      >
+        <svg className="w-3.5 h-3.5" fill={fav ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+        </svg>
+      </button>
+
+      {/* Remove from recent */}
+      {onRemoveRecent && (
+        <button
+          onClick={onRemoveRecent}
+          title="Geçmişten kaldır"
+          className="shrink-0 p-1.5 text-gray-600 hover:text-red-400 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ── VOD / LIVE badge ──────────────────────────────────────────
 function isVod(url) {
   if (!url) return false
@@ -300,63 +358,6 @@ export default function SidePanel({
     return buildSeriesMap(rawChannels)
   }, [rawChannels, isRecent, isFavs, customGrp]) // eslint-disable-line
 
-  // ── Channel row ───────────────────────────────────────────
-  function ChannelRow({ channel, showGroup: showGrp, onRemoveRecent }) {
-    const active = selectedChannel?.url === channel.url
-    const fav    = isFav(channel.url)
-    return (
-      <div className={`flex items-center gap-1 border-l-4 transition-colors ${
-        active ? 'border-blue-500 bg-gray-700' : 'border-transparent hover:bg-gray-700'
-      }`}>
-        <button
-          title={channel.name}
-          onClick={() => onSelectChannel(channel)}
-          className="flex-1 flex items-center gap-2 px-2 py-2.5 text-left min-w-0"
-        >
-          <div className="w-7 h-7 rounded bg-gray-600 flex items-center justify-center shrink-0 overflow-hidden">
-            {channel.logo
-              ? <img src={channel.logo} alt="" className="w-full h-full object-contain"
-                  onError={e => { e.target.style.display = 'none' }} />
-              : <svg className="w-3.5 h-3.5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2 4.5A2.5 2.5 0 014.5 2h11A2.5 2.5 0 0118 4.5v9A2.5 2.5 0 0115.5 16h-11A2.5 2.5 0 012 13.5v-9z"/>
-                </svg>
-            }
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm text-gray-200 truncate">{channel.name}</p>
-            {showGrp && <p className="text-xs text-gray-500 truncate">{channel.group}</p>}
-          </div>
-          <Badge url={channel.url} />
-        </button>
-
-        {/* Favourite star */}
-        <button
-          onClick={() => toggleFavorite(channel)}
-          title={fav ? 'Favorilerden çıkar' : 'Favorilere ekle'}
-          className={`shrink-0 p-1.5 transition-colors ${fav ? 'text-yellow-400' : 'text-gray-600 hover:text-yellow-400'}`}
-        >
-          <svg className="w-3.5 h-3.5" fill={fav ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-          </svg>
-        </button>
-
-        {/* Remove from recent */}
-        {onRemoveRecent && (
-          <button
-            onClick={onRemoveRecent}
-            title="Geçmişten kaldır"
-            className="shrink-0 p-1.5 text-gray-600 hover:text-red-400 transition-colors"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-          </button>
-        )}
-      </div>
-    )
-  }
-
   // ── Search bar ────────────────────────────────────────────
   const searchBar = (
     <div className="px-3 py-2 border-b border-gray-700 shrink-0">
@@ -397,7 +398,13 @@ export default function SidePanel({
           {searchResults.length === 0
             ? <p className="text-gray-500 text-xs p-4 text-center">Sonuç bulunamadı</p>
             : searchResults.map(ch => (
-                <ChannelRow key={ch.url} channel={ch} showGroup />
+                <ChannelRow
+                  key={ch.url}
+                  channel={ch}
+                  showGrp
+                  isActive={selectedChannel?.url === ch.url}
+                  onSelectChannel={onSelectChannel}
+                />
               ))
           }
         </div>
@@ -621,7 +628,12 @@ export default function SidePanel({
             </button>
             {expanded[sg.name] && sg.channels.map(ch => (
               <div key={ch.url} className="pl-4">
-                <ChannelRow channel={ch} showGroup={false} />
+                <ChannelRow
+                  channel={ch}
+                  showGrp={false}
+                  isActive={selectedChannel?.url === ch.url}
+                  onSelectChannel={onSelectChannel}
+                />
               </div>
             ))}
           </div>
@@ -632,7 +644,9 @@ export default function SidePanel({
           <ChannelRow
             key={ch.url}
             channel={ch}
-            showGroup={isSpecial}
+            showGrp={isSpecial}
+            isActive={selectedChannel?.url === ch.url}
+            onSelectChannel={onSelectChannel}
             onRemoveRecent={isRecent ? () => removeRecent(ch) : undefined}
           />
         ))}
