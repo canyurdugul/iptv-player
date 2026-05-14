@@ -8,6 +8,15 @@ import { useApp } from './context/AppContext'
 
 const tick = () => new Promise(r => setTimeout(r, 0))
 
+// ── Adult-content guard ───────────────────────────────────────
+// Channels whose name or group matches any of these patterns are
+// silently excluded from the recently-played history.
+const ADULT_RE = /\b(18\s*\+|\+\s*18|xxx|x{2,}|porn|porno|eroti[ck]|adult|sex\b|x-rated)\b/i
+
+function isAdultChannel(channel) {
+  return ADULT_RE.test(channel.name ?? '') || ADULT_RE.test(channel.group ?? '')
+}
+
 
 function resolveUrl(raw, base) {
   if (!raw) return ''
@@ -59,6 +68,7 @@ export default function App() {
   // Persist recently played whenever the selected channel changes
   useEffect(() => {
     if (!selected || activePlaylistId == null) return
+    if (isAdultChannel(selected)) return          // skip +18 / XXX channels
     addRecentlyPlayed(activePlaylistId, selected).catch(() => {})
     setRecentChannels(prev => {
       const filtered = prev.filter(c => c.url !== selected.url)
