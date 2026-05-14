@@ -8,6 +8,10 @@ const RECENT_KEY   = '__recent__'
 const FAVS_KEY     = '__favs__'
 const MIN_SERIES   = 2          // min episodes to form a sub-group
 
+// ── Adult-content group detection ─────────────────────────────
+const ADULT_RE = /\b(18\s*\+|\+\s*18|xxx|x{2,}|porn|porno|eroti[ck]|adult|sex\b|x-rated)\b/i
+const isAdultGroup = name => ADULT_RE.test(name)
+
 // ── Series detection ───────────────────────────────────────────
 function extractSeriesName(title) {
   const t = title.trim()
@@ -116,7 +120,9 @@ function Badge({ url }) {
 }
 
 // ── PIN unlock modal (inline) ─────────────────────────────────
-function PinPrompt({ group, onUnlock, onCancel }) {
+// onSuccess: optional override — called instead of unlockGroup(group) on correct PIN.
+// Used for adult groups so they don't get permanently added to AppContext unlockedGroups.
+function PinPrompt({ group, onUnlock, onCancel, onSuccess }) {
   const { unlockGroup } = useApp()
   const [val, setVal]   = useState('')
   const [err, setErr]   = useState('')
@@ -126,7 +132,7 @@ function PinPrompt({ group, onUnlock, onCancel }) {
 
   async function attempt() {
     const ok = await checkPIN(val)
-    if (ok) { unlockGroup(group); onUnlock() }
+    if (ok) { onSuccess ? onSuccess() : unlockGroup(group); onUnlock() }
     else    { setErr('Yanlış PIN'); setVal('') }
   }
 
@@ -271,8 +277,11 @@ export default function SidePanel({
   const [query,       setQuery]       = useState('')
   // Series sub-group expanded state: { [seriesName]: bool }
   const [expanded,    setExpanded]    = useState({})
-  // PIN prompt
+  // PIN prompt (hidden groups)
   const [pinTarget,   setPinTarget]   = useState(null)
+  // Adult group PIN prompt + session-unlock tracking
+  const [adultPinTarget,  setAdultPinTarget]  = useState(null)  // group name | null
+  const [unlockedAdult,   setUnlockedAdult]   = useState(new Set())
   // Custom group modal
   const [showCreate,  setShowCreate]  = useState(false)
   // Context-menu-like group options (right-click / long-press)
@@ -283,6 +292,9 @@ export default function SidePanel({
     const t = setTimeout(() => setQuery(searchText.trim()), 300)
     return () => clearTimeout(t)
   }, [searchText])
+
+  // Reset adult session-unlock when playlist changes
+  useEffect(() => { setUnlockedAdult(new Set()) }, [activePlaylistId])
 
   const isSearching = query.length >= 3
 
@@ -414,8 +426,21 @@ export default function SidePanel({
 
   // ── GROUP LIST VIEW ───────────────────────────────────────
   if (view === 'groups') {
-    const visibleGroups  = groups.filter(g => isGroupVisible(g))
-    const hiddenGrpNames = groups.filter(g => !isGroupVisible(g))
+    const adultGroups    = groups.filter(g => isAdultGroup(g))
+    const adultSet       = new Set(adultGroups)
+    const visibleGroups  = groups.filter(g => isGroupVisible(g)  && !adultSet.has(g))
+    const hiddenGrpNames = groups.filter(g => !isGroupVisible(g) && !adultSet.has(g))
+
+    function handleAdultGroupClick(group) {
+      if (unlockedAdult.has(group)) { handleSelectGroup(group); return }
+      if (!hasPIN()) {
+        // No PIN configured → open directly
+        setUnlockedAdult(prev => new Set([...prev, group]))
+        handleSelectGroup(group)
+        return
+      }
+      setAdultPinTarget(group)
+    }
 
     return (
       <div className="flex flex-col h-full overflow-hidden">
@@ -530,13 +555,63 @@ export default function SidePanel({
               <span className="flex-1 text-sm text-gray-500 truncate">{group}</span>
             </button>
           ))}
+
+          {/* ── Adult / 18+ groups (pinned, always locked until PIN) ── */}
+          {adultGroups.length > 0 && (
+            <>
+              <div className="px-3 pt-4 pb-1 flex items-center gap-1.5">
+                <svg className="w-3 h-3 text-rose-700 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd"/>
+                </svg>
+                <p className="text-xs text-rose-800 uppercase tracking-wider font-semibold">18+ İçerik</p>
+              </div>
+              {adultGroups.map(group => {
+                const unlocked = unlockedAdult.has(group)
+                return (
+                  <button key={group}
+                    onClick={() => handleAdultGroupClick(group)}
+                    className={`w-full flex items-center gap-2 px-3 py-2.5 text-left border-l-4 transition-colors ${
+                      unlocked && activeGroup === group && view === 'channels'
+                        ? 'border-rose-500 bg-gray-700'
+                        : 'border-transparent hover:border-rose-600 hover:bg-gray-700/60'
+                    }`}
+                  >
+                    <svg className={`w-3.5 h-3.5 shrink-0 ${unlocked ? 'text-rose-400' : 'text-rose-800'}`}
+                      fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {unlocked
+                        ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+                        : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                      }
+                    </svg>
+                    <span className={`flex-1 text-sm truncate ${unlocked ? 'text-rose-300' : 'text-rose-900'}`}>
+                      {group}
+                    </span>
+                    <span className="text-xs bg-rose-900/40 text-rose-700 rounded px-1.5 py-0.5 shrink-0">
+                      {groupMap[group]?.length ?? 0}
+                    </span>
+                  </button>
+                )
+              })}
+            </>
+          )}
         </div>
 
         {pinTarget && (
           <PinPrompt
             group={pinTarget}
-            onUnlock={() => setPinTarget(null)}
+            onUnlock={() => { handleSelectGroup(pinTarget); setPinTarget(null) }}
             onCancel={() => setPinTarget(null)}
+          />
+        )}
+
+        {adultPinTarget && (
+          <PinPrompt
+            group={adultPinTarget}
+            onSuccess={() => setUnlockedAdult(prev => new Set([...prev, adultPinTarget]))}
+            onUnlock={() => { handleSelectGroup(adultPinTarget); setAdultPinTarget(null) }}
+            onCancel={() => setAdultPinTarget(null)}
           />
         )}
 
